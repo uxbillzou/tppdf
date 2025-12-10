@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图片转 PDF 专业版 - 本地安全处理</title>
+    
+    <!-- 引入 Tailwind CSS (样式) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 引入 React 和 ReactDOM (核心框架) -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- 引入 Babel (用于解析 JSX) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- 引入 jsPDF (PDF 生成库) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <style>
+        /* 自定义一些动画效果 */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-in {
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+        /* 隐藏滚动条但保留功能 */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans selection:bg-blue-100">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useRef, useEffect } = React;
+
+        // --- 内置图标组件 (移除外部依赖，彻底解决加载报错) ---
+        const IconBase = ({ children, size = 24, className = "", ...props }) => (
+            <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                width={size} 
+                height={size} 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                className={className}
+                {...props}
+            >
+                {children}
+            </svg>
+        );
+
+        const Upload = (props) => <IconBase {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></IconBase>;
+        const FileDown = (props) => <IconBase {...props}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6"/><path d="m9 15 3 3 3-3"/></IconBase>;
+        const Trash2 = (props) => <IconBase {...props}><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></IconBase>;
+        const GripVertical = (props) => <IconBase {...props}><circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/></IconBase>;
+        const SortAsc = (props) => <IconBase {...props}><path d="M11 5h10"/><path d="M11 9h7"/><path d="M11 13h4"/><path d="m3 17 3 3 3-3"/><path d="M6 18V4"/></IconBase>;
+        const X = (props) => <IconBase {...props}><path d="M18 6 6 18"/><path d="m6 6 18 18"/></IconBase>;
+        const FileImage = (props) => <IconBase {...props}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><circle cx="10" cy="13" r="2"/><path d="m20 17-1.09-1.09a2 2 0 0 0-2.82 0L10 22"/></IconBase>;
+        const Settings = (props) => <IconBase {...props}><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.47a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></IconBase>;
+        const Sliders = (props) => <IconBase {...props}><line x1="4" x2="4" y1="21" y2="14"/><line x1="4" x2="4" y1="10" y2="3"/><line x1="12" x2="12" y1="21" y2="12"/><line x1="12" x2="12" y1="8" y2="3"/><line x1="20" x2="20" y1="21" y2="16"/><line x1="20" x2="20" y1="12" y2="3"/><line x1="2" x2="6" y1="14" y2="14"/><line x1="10" x2="14" y1="8" y2="8"/><line x1="18" x2="22" y1="16" y2="16"/></IconBase>;
+        const Check = (props) => <IconBase {...props}><polyline points="20 6 9 17 4 12"/></IconBase>;
+        const ChevronDown = (props) => <IconBase {...props}><path d="m6 9 6 6 6-6"/></IconBase>;
+        const ChevronUp = (props) => <IconBase {...props}><path d="m18 15-6-6-6 6"/></IconBase>;
+        // ----------------------------------------------------
+
+        // 主组件代码
+        function App() {
+            const [images, setImages] = useState([]);
+            const [isDragging, setIsDragging] = useState(false);
+            const [isGenerating, setIsGenerating] = useState(false);
+            const [draggedItemIndex, setDraggedItemIndex] = useState(null);
+            
+            // 默认展开设置
+            const [showSettings, setShowSettings] = useState(true);
+            const [pdfQuality, setPdfQuality] = useState(0.8); // 0.1 - 1.0
+            const [pageSizeMode, setPageSizeMode] = useState('original'); // 'original' | 'a4'
+
+            const fileInputRef = useRef(null);
+
+            // 处理文件选择
+            const handleFileSelect = (e) => {
+                if (e.target.files && e.target.files.length > 0) {
+                    processFiles(Array.from(e.target.files));
+                }
+                e.target.value = null;
+            };
+
+            // 处理文件
+            const processFiles = (files) => {
+                const newImages = files
+                    .filter(file => file.type.startsWith('image/'))
+                    .map(file => ({
+                        id: Math.random().toString(36).substr(2, 9),
+                        file,
+                        name: file.name,
+                        preview: URL.createObjectURL(file),
+                        size: (file.size / 1024 / 1024).toFixed(2)
+                    }));
+
+                setImages(prev => [...prev, ...newImages]);
+            };
+
+            // 拖拽上传相关
+            const onDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
+            const onDragLeave = (e) => { e.preventDefault(); setIsDragging(false); };
+            const onDrop = (e) => {
+                e.preventDefault();
+                setIsDragging(false);
+                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    processFiles(Array.from(e.dataTransfer.files));
+                }
+            };
+
+            // 列表排序拖拽
+            const handleImageDragStart = (e, index) => {
+                setDraggedItemIndex(index);
+                e.dataTransfer.effectAllowed = "move";
+            };
+
+            const handleImageDragOver = (e, index) => {
+                e.preventDefault();
+                if (draggedItemIndex === null || draggedItemIndex === index) return;
+                const newImages = [...images];
+                const draggedItem = newImages[draggedItemIndex];
+                newImages.splice(draggedItemIndex, 1);
+                newImages.splice(index, 0, draggedItem);
+                setImages(newImages);
+                setDraggedItemIndex(index);
+            };
+
+            const handleImageDragEnd = () => setDraggedItemIndex(null);
+
+            const sortByName = () => {
+                const sorted = [...images].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+                setImages(sorted);
+            };
+
+            const removeImage = (id) => setImages(prev => prev.filter(img => img.id !== id));
+
+            const clearAll = () => {
+                if (window.confirm('确定要清空所有图片吗？')) {
+                    // 释放内存
+                    images.forEach(img => URL.revokeObjectURL(img.preview));
+                    setImages([]);
+                }
+            };
+
+            // 核心生成逻辑
+            const generatePDF = async () => {
+                if (!window.jspdf) {
+                    alert("PDF 组件加载失败，请检查网络连接。");
+                    return;
+                }
+                if (images.length === 0) return;
+
+                setIsGenerating(true);
+
+                try {
+                    const { jsPDF } = window.jspdf;
+                    // 初始化 PDF
+                    const doc = new jsPDF({
+                        unit: 'mm', // 统一使用毫米方便计算
+                        compress: true 
+                    });
+                    
+                    doc.deletePage(1); // 删除默认白页
+
+                    for (let i = 0; i < images.length; i++) {
+                        const imgItem = images[i];
+                        
+                        // 1. 获取图片 Base64 (应用清晰度设置)
+                        const base64Data = await getImageBase64(imgItem.preview, pdfQuality);
+                        const imgProps = await getImageProperties(imgItem.preview);
+                        
+                        // 像素转毫米 (1px ≈ 0.264583mm, 假设 96dpi)
+                        const pxToMm = 0.264583;
+                        const imgWidthMm = imgProps.width * pxToMm;
+                        const imgHeightMm = imgProps.height * pxToMm;
+
+                        if (pageSizeMode === 'original') {
+                            // --- 模式 1: 原始比例 (无白边) ---
+                            // 直接将 PDF 页面大小设置为图片大小
+                            const orientation = imgWidthMm > imgHeightMm ? 'l' : 'p';
+                            doc.addPage([imgWidthMm, imgHeightMm], orientation);
+                            doc.addImage(base64Data, 'JPEG', 0, 0, imgWidthMm, imgHeightMm);
+                        } else {
+                            // --- 模式 2: A4 纸张 (自适应) ---
+                            const isLandscape = imgProps.width > imgProps.height;
+                            const orientation = isLandscape ? 'l' : 'p';
+                            
+                            doc.addPage('a4', orientation);
+                            
+                            const pageWidth = doc.internal.pageSize.getWidth();
+                            const pageHeight = doc.internal.pageSize.getHeight();
+                            const margin = 10;
+                            const contentWidth = pageWidth - (margin * 2);
+                            const contentHeight = pageHeight - (margin * 2);
+
+                            let finalWidth = imgWidthMm;
+                            let finalHeight = imgHeightMm;
+                            
+                            // 计算缩放比 (Contain)
+                            const ratio = Math.min(contentWidth / finalWidth, contentHeight / finalHeight, 1);
+                            
+                            finalWidth *= ratio;
+                            finalHeight *= ratio;
+
+                            const x = (pageWidth - finalWidth) / 2;
+                            const y = (pageHeight - finalHeight) / 2;
+                            
+                            doc.addImage(base64Data, 'JPEG', x, y, finalWidth, finalHeight);
+                            
+                            // 仅在 A4 模式下显示页码
+                            doc.setFontSize(10);
+                            doc.setTextColor(150);
+                            doc.text(`${i + 1}`, pageWidth - 5, pageHeight - 5, { align: 'right' });
+                        }
+                    }
+
+                    doc.save('images-combined.pdf');
+                } catch (error) {
+                    console.error("生成 PDF 失败:", error);
+                    alert("生成 PDF 过程中出错。请查看控制台获取更多信息。");
+                } finally {
+                    setIsGenerating(false);
+                }
+            };
+
+            // 辅助：获取图片 Base64
+            const getImageBase64 = (url, quality) => {
+                return new Promise((resolve, reject) => {
+                    const img = new Image();
+                    img.crossOrigin = 'Anonymous';
+                    img.src = url;
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        const ctx = canvas.getContext('2d');
+                        // 填充白色背景
+                        ctx.fillStyle = '#FFFFFF';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        ctx.drawImage(img, 0, 0);
+                        resolve(canvas.toDataURL('image/jpeg', quality)); 
+                    };
+                    img.onerror = reject;
+                });
+            };
+
+            // 辅助：获取图片宽高
+            const getImageProperties = (url) => {
+                return new Promise((resolve, reject) => {
+                    const img = new Image();
+                    img.src = url;
+                    img.onload = () => resolve({ width: img.width, height: img.height });
+                    img.onerror = reject;
+                });
+            };
+
+            return (
+                <div className="min-h-screen pb-20">
+                    {/* 顶部导航 */}
+                    <header className="bg-white border-b border-slate-200 sticky top-0 z-20 shadow-sm">
+                        <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <div className="bg-blue-600 p-2 rounded-lg text-white shadow-blue-200 shadow-lg">
+                                    <FileImage size={20} />
+                                </div>
+                                <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                                    图片转 PDF 专业版
+                                </h1>
+                            </div>
+                            <div className="flex items-center gap-4 text-sm text-slate-500">
+                                <span className="hidden sm:inline">自定义比例与画质</span>
+                            </div>
+                        </div>
+                    </header>
+
+                    <main className="max-w-5xl mx-auto px-4 py-8">
+                        
+                        {/* 上传区域 */}
+                        <div 
+                            className={`
+                                relative border-2 border-dashed rounded-2xl p-10 text-center transition-all duration-200 ease-in-out cursor-pointer group mb-8
+                                ${isDragging ? 'border-blue-500 bg-blue-50 scale-[1.01]' : 'border-slate-300 hover:border-blue-400 hover:bg-white bg-slate-50/50'}
+                            `}
+                            onDragOver={onDragOver}
+                            onDragLeave={onDragLeave}
+                            onDrop={onDrop}
+                            onClick={() => fileInputRef.current?.click()}
+                        >
+                            <input type="file" ref={fileInputRef} className="hidden" multiple accept="image/*" onChange={handleFileSelect} />
+                            <div className="flex flex-col items-center gap-3">
+                                <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
+                                    <Upload size={32} />
+                                </div>
+                                <div>
+                                    <p className="text-lg font-medium text-slate-700">点击或拖拽上传图片</p>
+                                    <p className="text-sm text-slate-400 mt-1">支持 JPG, PNG, WebP</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 控制面板 */}
+                        {images.length > 0 && (
+                            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-6 animate-in">
+                                
+                                {/* 主要操作栏 */}
+                                <div className="p-4 flex flex-col md:flex-row items-center justify-between gap-4 border-b border-slate-100">
+                                    <div className="flex items-center gap-3 w-full md:w-auto">
+                                        <div className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm font-medium whitespace-nowrap">
+                                            已选 {images.length} 张
+                                        </div>
+                                        <div className="h-4 w-px bg-slate-300 mx-1"></div>
+                                        <button 
+                                            onClick={() => setShowSettings(!showSettings)}
+                                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${showSettings ? 'bg-blue-100 text-blue-700' : 'text-slate-600 hover:bg-slate-100'}`}
+                                        >
+                                            <Settings size={16} />
+                                            <span>导出设置</span>
+                                            {showSettings ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}
+                                        </button>
+                                    </div>
+
+                                    <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end">
+                                        <button 
+                                            onClick={sortByName} 
+                                            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors border border-transparent hover:border-slate-200"
+                                            title="按文件名排序"
+                                        >
+                                            <SortAsc size={16} /> <span className="hidden sm:inline">排序</span>
+                                        </button>
+                                        <button 
+                                            onClick={clearAll} 
+                                            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                        >
+                                            <Trash2 size={16} /> <span className="hidden sm:inline">清空</span>
+                                        </button>
+                                        <div className="w-px h-6 bg-slate-200 mx-1"></div>
+                                        <button 
+                                            onClick={generatePDF}
+                                            disabled={isGenerating}
+                                            className={`
+                                                flex items-center gap-2 px-6 py-2 rounded-lg text-white font-medium shadow-md transition-all
+                                                ${isGenerating ? 'bg-slate-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 hover:shadow-lg active:scale-95'}
+                                            `}
+                                        >
+                                            {isGenerating ? (
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                                    <span>处理中...</span>
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-center gap-2">
+                                                    <FileDown size={18} />
+                                                    <span>导出 PDF</span>
+                                                </div>
+                                            )}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* 可折叠设置面板 */}
+                                {showSettings && (
+                                    <div className="p-5 bg-slate-50 border-b border-slate-100 animate-in">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                            
+                                            {/* 1. 页面尺寸设置 */}
+                                            <div>
+                                                <h4 className="text-sm font-semibold text-slate-800 mb-3 flex items-center gap-2">
+                                                    <FileImage size={16} className="text-blue-500"/> 页面布局
+                                                </h4>
+                                                <div className="flex gap-3">
+                                                    <button 
+                                                        onClick={() => setPageSizeMode('original')}
+                                                        className={`flex-1 p-3 rounded-lg border text-sm text-left transition-all ${pageSizeMode === 'original' ? 'border-blue-500 bg-blue-50 text-blue-700 ring-1 ring-blue-500' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+                                                    >
+                                                        <div className="font-medium mb-0.5">原始比例 (无白边)</div>
+                                                        <div className="text-xs opacity-70">PDF 页面大小完全等于图片尺寸</div>
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => setPageSizeMode('a4')}
+                                                        className={`flex-1 p-3 rounded-lg border text-sm text-left transition-all ${pageSizeMode === 'a4' ? 'border-blue-500 bg-blue-50 text-blue-700 ring-1 ring-blue-500' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+                                                    >
+                                                        <div className="font-medium mb-0.5">A4 纸张</div>
+                                                        <div className="text-xs opacity-70">将图片缩放并居中放置在 A4 纸上</div>
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {/* 2. 清晰度/大小设置 */}
+                                            <div>
+                                                <h4 className="text-sm font-semibold text-slate-800 mb-3 flex items-center gap-2">
+                                                    <Sliders size={16} className="text-blue-500"/> PDF 质量设置
+                                                </h4>
+                                                <div className="bg-white p-3 rounded-lg border border-slate-200">
+                                                    <div className="flex justify-between text-xs text-slate-500 mb-2">
+                                                        <span>小体积 (压缩)</span>
+                                                        <span className="font-bold text-blue-600">{Math.round(pdfQuality * 100)}% 质量</span>
+                                                        <span>高画质</span>
+                                                    </div>
+                                                    <input 
+                                                        type="range" 
+                                                        min="0.1" 
+                                                        max="1.0" 
+                                                        step="0.1" 
+                                                        value={pdfQuality}
+                                                        onChange={(e) => setPdfQuality(parseFloat(e.target.value))}
+                                                        className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                                                    />
+                                                    <div className="text-xs text-slate-400 mt-2 text-center">
+                                                        {pdfQuality < 0.4 ? '适用于仅供参考，文件极小' : 
+                                                         pdfQuality < 0.8 ? '平衡画质与文件大小 (推荐)' : 
+                                                         '适用于打印或高清展示，文件较大'}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* 图片网格 */}
+                        {images.length > 0 ? (
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 animate-in">
+                                {images.map((img, index) => (
+                                    <div 
+                                        key={img.id}
+                                        draggable
+                                        onDragStart={(e) => handleImageDragStart(e, index)}
+                                        onDragOver={(e) => handleImageDragOver(e, index)}
+                                        onDragEnd={handleImageDragEnd}
+                                        className={`
+                                            group relative bg-white rounded-xl border border-slate-200 p-2 shadow-sm transition-all
+                                            hover:shadow-md cursor-grab active:cursor-grabbing
+                                            ${draggedItemIndex === index ? 'opacity-50 scale-95 border-blue-400 border-dashed' : ''}
+                                        `}
+                                    >
+                                        <div className="absolute top-3 left-3 z-10 w-6 h-6 bg-black/60 backdrop-blur-sm text-white text-xs flex items-center justify-center rounded-full font-mono shadow-sm">
+                                            {index + 1}
+                                        </div>
+                                        <button 
+                                            onClick={() => removeImage(img.id)}
+                                            className="absolute top-1 right-1 z-10 p-1.5 bg-white/90 text-slate-500 hover:text-red-500 rounded-full opacity-0 group-hover:opacity-100 transition-all shadow-sm hover:bg-white"
+                                        >
+                                            <X size={16} />
+                                        </button>
+                                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 pointer-events-none z-0">
+                                            <div className="bg-black/20 p-2 rounded-full text-white backdrop-blur-sm">
+                                                <GripVertical size={24} />
+                                            </div>
+                                        </div>
+                                        <div className="aspect-[3/4] rounded-lg overflow-hidden bg-slate-100 flex items-center justify-center relative border border-slate-100">
+                                            <img src={img.preview} alt={img.name} className="w-full h-full object-contain pointer-events-none" />
+                                        </div>
+                                        <div className="mt-2 px-1">
+                                            <p className="text-xs text-slate-600 truncate font-medium">{img.name}</p>
+                                            <p className="text-[10px] text-slate-400">{img.size} MB</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="mt-12 text-center select-none animate-in">
+                                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 mb-4">
+                                    <FileImage className="text-slate-300" size={32} />
+                                </div>
+                                <h3 className="text-slate-500 font-medium">暂无图片</h3>
+                                <p className="text-slate-400 text-sm mt-1">上传图片后，点击“导出设置”可调整比例和清晰度</p>
+                            </div>
+                        )}
+                    </main>
+                    <footer className="max-w-5xl mx-auto px-4 py-8 text-center text-slate-400 text-sm">
+                        <p>所有处理均在本地浏览器完成，您的图片不会上传到服务器。</p>
+                    </footer>
+                </div>
+            );
+        }
+
+        // 3. 渲染应用
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
